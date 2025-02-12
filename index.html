@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>问题识别</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .chat-container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .chat-header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .chat-header h1 {
+            color: #333;
+            margin: 0;
+            font-size: 24px;
+        }
+        .message-box {
+            height: 500px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            padding: 15px;
+            overflow-y: auto;
+            background-color: #fafafa;
+        }
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+        #messageInput {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        #messageInput:focus {
+            border-color: #4CAF50;
+        }
+        button {
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 12px 16px;
+            border-radius: 8px;
+            max-width: 80%;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: auto;
+            color: #1565c0;
+        }
+        .bot-message {
+            background-color: #f1f8e9;
+            margin-right: auto;
+            color: #2e7d32;
+        }
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+            padding: 10px;
+        }
+        .loading-dots {
+            display: inline-block;
+            animation: dots 1.5s infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        .timestamp {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>问题识别</h1>
+        </div>
+        <div id="messageBox" class="message-box"></div>
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="请输入您的问题...">
+            <button onclick="sendMessage()" id="sendButton">发送</button>
+        </div>
+    </div>
+
+    <script>
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const messageBox = document.getElementById('messageBox');
+            const sendButton = document.getElementById('sendButton');
+            const message = messageInput.value.trim();
+            
+            if (!message) return;
+
+            // 禁用输入和发送按钮
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+
+            // 获取当前时间
+            const timestamp = new Date().toLocaleTimeString();
+
+            // 显示用户消息
+            messageBox.innerHTML += `
+                <div class="message user-message">
+                    ${message}
+                    <div class="timestamp">${timestamp}</div>
+                </div>
+            `;
+            messageInput.value = '';
+            messageBox.scrollTop = messageBox.scrollHeight;
+
+            // 显示加载提示
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading';
+            loadingDiv.innerHTML = 'AI 正在思考中<span class="loading-dots"></span>';
+            messageBox.appendChild(loadingDiv);
+            messageBox.scrollTop = messageBox.scrollHeight;
+
+            try {
+                const response = await fetch('http://localhost:5000/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+                
+                // 移除加载提示
+                loadingDiv.remove();
+                
+                // 格式化并显示AI回复
+                const formattedReply = formatReply(data.reply);
+                messageBox.innerHTML += `
+                    <div class="message bot-message">
+                        ${formattedReply}
+                        <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+                    </div>
+                `;
+                messageBox.scrollTop = messageBox.scrollHeight;
+            } catch (error) {
+                loadingDiv.remove();
+                messageBox.innerHTML += `
+                    <div class="message" style="color: red; background-color: #ffebee;">
+                        错误: 无法获取回复
+                        <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+                    </div>
+                `;
+            } finally {
+                // 重新启用输入和发送按钮
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                messageInput.focus();
+            }
+        }
+
+        // 格式化回复文本，处理换行和段落
+        function formatReply(text) {
+            return text
+                .replace(/\n\n/g, '</p><p>')  // 双换行转换为段落
+                .replace(/\n/g, '<br>')        // 单换行转换为<br>
+                .replace(/\s{2,}/g, ' &nbsp;') // 保留多个空格
+                .trim();
+        }
+
+        // 支持按回车发送消息
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html> 
